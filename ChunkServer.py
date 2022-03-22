@@ -22,11 +22,10 @@ class ChunkServer():
         self.chunk_id_to_filename = {} # int chunk_id -> str filename
         self.chunk_id_to_version = {} # int chunk_id -> int version
         self.chunk_id_to_new_data = {} # int chunk_id -> list[str] new data written
-        #self.chunk_id_to_timeout = {} # int chunk_id -> float lease timeout
         self.recently_applied_data = {} # data -> int offset
         # (int chunk_id, int offset in chunk) -> int checksum of data
         self.chunk_idx_to_checksum = {}
-        # hacky way to avoid deadlock with xmlrpc -
+        # to avoid deadlock with xmlrpc -
         # interrupt and retry when deadlock is detected
         socket.setdefaulttimeout(2)
 
@@ -43,10 +42,8 @@ class ChunkServer():
         background_thread.start()
         print('server initialized and linked with master')
 
-    '''
-    init_from_files:
-    Initializes the chunkserver from data it has persistently written to disk (if any).
-    '''
+    # init_from_files:
+    # Initializes the chunkserver from data it has persistently written to disk (if any).
     def init_from_files(self):
         # initialize self.chunk_idx_to_checksum from disk
         if os.path.isfile(self.root_dir + 'chunk_checksums.pickle'):
@@ -69,13 +66,9 @@ class ChunkServer():
             self.chunk_id_to_filename[chunk_id] = filename
         print('initialized from files:', self.chunk_id_to_filename)
 
-    '''
-    remove_chunks:
-    Remove the provided chunks from the chunkserver's metadata and delete the corresponding
-    file from storage.
-
-    @param deleted_chunk_ids(list[int]): list of chunk ids to delete
-    '''
+    # remove_chunks:
+    # Remove the provided chunks from the chunkserver's metadata and delete the corresponding
+    # file from storage.
     def remove_chunks(self, deleted_chunk_ids):
         for chunk_id in deleted_chunk_ids:
             filename = self.chunk_id_to_filename[chunk_id]
@@ -95,10 +88,8 @@ class ChunkServer():
             with open(self.root_dir + 'chunk_checksums.pickle', 'wb') as f:
                 pickle.dump(self.chunk_idx_to_checksum, f)
     
-    '''
-    background_thread:
-    Thread that continuously runs to handle heartbeats to the master.
-    '''
+    # background_thread:
+    # Thread that continuously runs to handle heartbeats to the master.
     def background_thread(self):
         while True:
             time.sleep(self.thread_interval)
@@ -112,16 +103,9 @@ class ChunkServer():
                     time.sleep(10)
             self.remove_chunks(deleted_chunk_ids)
 
-    '''
-    replicate_data:
-    Called by the master in order to tell this chunkserver to copy data from another
-    chunkserver.
-
-    @param chunk_id(int): chunk id of data to copy
-    @param version(int): current version of data in order to check for stale replicas
-    @param replica_url(string): url of chunkserver to copy data from
-    @return string: result message
-    '''
+    # replicate_data:
+    # Called by the master in order to tell this chunkserver to copy data from another
+    # chunkserver.
     def replicate_data(self, chunk_id, version, replica_url):
         replica_proxy = ServerProxy(replica_url)
         res = replica_proxy.get_data_for_chunk(chunk_id, version)
@@ -145,15 +129,8 @@ class ChunkServer():
         print('copied chunk', chunk_id, 'from', replica_url, 'to myself')
         return 'success'
 
-    '''
-    get_data_for_chunk:
-    Called by another chunkserver when it is requesting to copy data from this chunkserver.
-
-    @param chunk_id(int): chunk id of data to copy
-    @param version(int): current version of chunk to check for stale replicas
-    @return (string, string, int): filename of resulting data, the data itself,
-    and the current version of the chunk
-    '''
+    # get_data_for_chunk:
+    # Called by another chunkserver when it is requesting to copy data from this chunkserver.
     def get_data_for_chunk(self, chunk_id, version):
         if version > self.chunk_id_to_version[chunk_id]:
             return 'stale replica'
@@ -173,26 +150,17 @@ class ChunkServer():
         print('sending data for', filename, chunk_id, 'to other replica')
         return (filename, res, version)
 
-    '''
-    get_chunks:
-    Helper function to return all chunks on this chunkserver.
-
-    @return list[int]: list of all chunk ids on this chunkserver
-    '''
+    # get_chunks:
+    # Helper function to return all chunks on this chunkserver.
     def get_chunks(self):
         print('sending list of owned chunks to master')
         cids = list(self.chunk_id_to_filename.keys())
         chunks = [(cid, self.chunk_id_to_version[cid]) for cid in cids]
         return chunks
 
-    '''
-    update_version:
-    Called by the client for each chunkserver in order to update the version
-    of the specified chunk.
-
-    @param chunk_id(int): chunk id whose version we should upgrade
-    @param new_version(int): new version to update to
-    '''
+    # update_version:
+    # Called by the client for each chunkserver in order to update the version
+    # of the specified chunk.
     def update_version(self, chunk_id, new_version): #needs to be called in Write when writing in parallel
         if chunk_id in self.chunk_id_to_version:
             cur_version = self.chunk_id_to_version[chunk_id]
@@ -203,13 +171,8 @@ class ChunkServer():
         with open(self.root_dir + 'chunk_versions.pickle', 'wb') as f:
             pickle.dump(self.chunk_id_to_version, f)
 
-    '''
-    create:
-    Called by the master to create a file on this server.
-
-    @param filename(string): filename of file to create
-    @param chunk_id(int): first chunk id of file to create
-    '''
+    # create:
+    # Called by the master to create a file on this server.
     def create(self, filename, chunk_id):
         chunk_filename = filename + '_' + str(chunk_id)
         with open(self.root_dir + chunk_filename, 'w') as f:
@@ -221,16 +184,8 @@ class ChunkServer():
         self.update_version(chunk_id, 0)
         print('chunk_id_to_filename:', self.chunk_id_to_filename)
 
-    '''
-    validate_checksum:
-    Validates the checksum of the provided data.
-
-    @param data(string): data to validate
-    @param chunk_id(int): chunk id of data to validate
-    @param cksm_offset(int): offset within chunk to start validating from.
-    Must be a multiple of self.checksum_size_bytes
-    @return bool: Whether or not this data has a valid checksum.
-    '''
+    # validate_checksum:
+    # Validates the checksum of the provided data.
     def validate_checksum(self, data, chunk_id, cksm_offset):
         for i in range(cksm_offset, cksm_offset + len(data), self.checksum_size_bytes):
             cksm_idx = i // self.checksum_size_bytes
@@ -247,15 +202,8 @@ class ChunkServer():
                 return False
         return True
 
-    '''
-    read:
-    Called by the client to read from a file.
-
-    @param chunk_id(int): chunk id to read
-    @param chunk_offset(int): offset within chunk to start reading from
-    @param amount(int): amount in bytes to read from chunk
-    @return string: data read from file
-    '''
+    # read:
+    # Called by the client to read from a file.
     def read(self, chunk_id, chunk_offset, amount):
         print('reading chunk', chunk_id, 'for', amount, 'bytes')
         filename = self.root_dir + self.chunk_id_to_filename[chunk_id]
@@ -282,18 +230,8 @@ class ChunkServer():
             return res[diff:diff + amount]
 
 
-    '''
-    send_data:
-    Called by the client to send data to chunkservers. It first sends data to one
-    chunkserver, which then sends it to another in a chain. This is so each chunkserver
-    can take full advantage of its outbound bandwidth.
-
-    @param chunk_id(int): chunk id that this data is for
-    @param data(string): data to write
-    @param idx(int): index within replica_urls that the chain is currently at
-    @param replica_urls(list[string]): chain of replica urls to send data to
-    @return string: result message
-    '''
+    # send_data:
+    # Called by the client to send data to chunkservers.
     def send_data(self, chunk_id, data):
         if chunk_id not in self.chunk_id_to_new_data:
             self.chunk_id_to_new_data[chunk_id] = []
@@ -301,34 +239,16 @@ class ChunkServer():
         print('done storing')
         return 'success'
 
-    '''
-    update_checksum:
-    Updates the checksum given new data.
-
-    @param chunk_id_and_idx((int, int)): tuple to identify the spot to checksum
-    @param data(string): string of new data to add to checksum
-    '''
+    # update_checksum:
+    # Updates the checksum given new data.
     def update_checksum(self, chunk_id_and_idx, data):
         new_checksum = 0
         for d in data:
             new_checksum += ord(d)
         self.chunk_idx_to_checksum[chunk_id_and_idx] += new_checksum
 
-    '''
-    apply_mutations:
-    Called by the client to tell the primary to apply mutations to the secondary replicas.
-    The primary will choose its order of mutations as the correct order, apply those
-    mutations to itself, then send those mutations to secondaries.
-
-    @param chunk_id(int): chunk id to apply mutations for
-    @param secondary_urls(list[string]): secondary urls to apply mutations to
-    @param primary(string): primary chunkserver for this chunk id
-    @param new_mutations(list[string]): list of new data mutations to apply. This will
-    be empty when called for the primary.
-    @return dict{string-> int}: maps data applied to the offset in the chunk it was applied
-    at. This is a map because multiple writes could be applied in one apply_mutations call,
-    so we need to return offsets for all data written.
-    '''
+    # apply_mutations:
+    # Called by the client to tell the replica to apply mutations
     def apply_mutations(self, chunk_id, new_mutations, data_to_offset):
         if chunk_id not in self.chunk_id_to_new_data:
             # no new data, must have been applied already.

@@ -21,7 +21,6 @@ class Master():
     def __init__(self, n_replicas):
         random.seed(0)
         self.num_replicas = n_replicas
-        self.lease_duration_secs = 30
         self.deleted_file_duration_secs = 30
 
         self.chunkserver_url_to_proxy = {}
@@ -45,12 +44,10 @@ class Master():
                                 instance_port=your_rest_server_port, instance_id="1")
         print('master registered')
 
-    '''
-    init_from_log:
-    Initializes the master from its log, if it exists. Used to recover in-memory metadata
-    after a master crash. It recovers its chunk to replica mapping by asking all
-    chunkservers for what chunks they own.
-    '''
+    # init_from_log:
+    # Initializes the master from its log, if it exists. Used to recover in-memory metadata
+    # after a master crash. It recovers its chunk to replica mapping by asking all
+    # chunkservers for what chunks they own.
     def init_from_log(self):
         if not os.path.isfile(self.root_dir + 'log.txt'):
             print('initializing from scratch')
@@ -84,10 +81,8 @@ class Master():
                     self.chunk_to_urls[chunk_id] = []
                 self.chunk_to_urls[chunk_id].append(url)
 
-    '''
-    flush_to_log:
-    Helper function to flush necessary in-memory data to disk.
-    '''
+    # flush_to_log:
+    # Helper function to flush necessary in-memory data to disk.
     def flush_to_log(self):
         with open(self.root_dir + 'log.txt', 'wb') as f:
             pickle.dump(list(self.chunkserver_url_to_proxy.keys()), f)
@@ -95,12 +90,8 @@ class Master():
             pickle.dump(self.chunk_id_counter, f)
         print('flushed metadata to log')
     
-    '''
-    background_thread:
-    Thread that continuously runs to handle various background tasks.
-
-    @param interval(int): interval to sleep for between runs
-    '''
+    # background_thread:
+    # Thread that continuously runs to handle various background tasks.
     def background_thread(self, interval):
         while True:
             self.garbage_collect()
@@ -108,12 +99,10 @@ class Master():
             self.rereplicate_chunks()
             time.sleep(interval)
 
-    '''
-    check_heartbeats:
-    Runs periodically in the background thread to check what chunkservers have not sent
-    heartbeats recently. If a chunkserver has not sent a heartbeat, we assume it is down
-    and remove it from our metadata.
-    '''
+    # check_heartbeats:
+    # Runs periodically in the background thread to check what chunkservers have not sent
+    # heartbeats recently. If a chunkserver has not sent a heartbeat, we assume it is down
+    # and remove it from our metadata.
     def check_heartbeats(self):
         urls_to_delete = []
         for url in self.url_to_heartbeat_time:
@@ -127,17 +116,11 @@ class Master():
         for url in urls_to_delete:
             del self.url_to_heartbeat_time[url]
 
-    '''
-    heartbeat:
-    Collects heartbeats from a chunkserver and notes the time the heartbeat was received.
-    The server also sends a list of chunks it owns, and the master will respond with
-    the chunks that it no longer has metadata for. The chunkserver will then delete these
-    chunks.
-
-    @param url(string): url of chunkserver that's sending this heartbeat
-    @param chunk_ids(list[int]): list of chunk ids that this chunkserver owns
-    @return list[int]: list of chunk ids that the master no longer has metadata for
-    '''
+    # heartbeat:
+    # Collects heartbeats from a chunkserver and notes the time the heartbeat was received.
+    # The server also sends a list of chunks it owns, and the master will respond with
+    # the chunks that it no longer has metadata for. The chunkserver will then delete these
+    # chunks.
     def heartbeat(self, url, chunk_ids):
         print('received heartbeat from', url)
         self.url_to_heartbeat_time[url] = time.time()
@@ -160,12 +143,10 @@ class Master():
             print('does not have metadata for:', deleted_chunk_ids)
         return deleted_chunk_ids
 
-    '''
-    garbage_collect:
-    Runs periodically in the background to check all filenames that have been deleted.
-    If the file has been deleted (renamed to DELETED_original_filename) and the deletion
-    wait time has passed, we delete its metadata.
-    '''
+    # garbage_collect:
+    # Runs periodically in the background to check all filenames that have been deleted.
+    # If the file has been deleted (renamed to DELETED_original_filename) and the deletion
+    # wait time has passed, we delete its metadata.
     def garbage_collect(self):
         #iterate through file namespace and remove old deleted files
         filenames_to_delete = []
@@ -197,17 +178,11 @@ class Master():
             self.flush_to_log()
         print('after garbage collection:', self.filename_to_chunks, self.chunk_to_filename)
 
-    '''
-    link_with_master:
-    A chunkserver calls this when it starts to link with the master. The master will then
-    add this chunkserver and its chunks to its own metadata. Since this will be called when
-    a replica recovers after crashing, it also checks versions in the chunk list for any
-    stale chunks, and reports them if found.
-
-    @param url(string): url of chunkserver sending this request
-    @param chunk_list(list[int]): chunk ids that this chunkserver owns
-    @return list[int]: chunk ids that are stale or deleted
-    '''
+    # link_with_master:
+    # A chunkserver calls this when it starts to link with the master. The master will then
+    # add this chunkserver and its chunks to its own metadata. Since this will be called when
+    # a replica recovers after crashing, it also checks versions in the chunk list for any
+    # stale chunks, and reports them if found.
     def link_with_master(self, url, chunk_list):
         self.url_to_heartbeat_time[url] = time.time()
         self.chunkserver_url_to_proxy[url] = ServerProxy(url)
@@ -237,13 +212,9 @@ class Master():
         print('chunkserver_url_to_proxy:', self.chunkserver_url_to_proxy)
         return stale_chunks
 
-    '''
-    remove_chunkserver:
-    Removes the specified chunkserver from the master's metadata. Usually called when we
-    detect that this chunkserver has failed or has stopped responding.
-
-    @param url_to_remove(string): url of failed chunkserver to remove from metadata
-    '''
+    # remove_chunkserver:
+    # Removes the specified chunkserver from the master's metadata. Usually called when we
+    # detect that this chunkserver has failed or has stopped responding.
     def remove_chunkserver(self, url_to_remove):
         # remove url of failed chunkserver from chunk_to_urls and chunkserver_url_to_proxy
         if url_to_remove not in self.chunkserver_url_to_proxy:
@@ -260,14 +231,8 @@ class Master():
         print('removed failed chunkserver at', url_to_remove)
         print('remaining chunk_to_urls:', self.chunk_to_urls)
 
-    '''
-    lookup_chunk_version:
-    Looks up the version of the specified chunk id. Used for stale replica detection.
-
-    @param chunk_id(int): chunk id to get version for
-    @return (int, int): version of the chunk and its chunk index
-    The chunk index is used when the master needs to update its own metadata.
-    '''
+    # lookup_chunk_version:
+    # Looks up the version of the specified chunk id. Used for stale replica detection.
     def lookup_chunk_version(self, chunk_id):
         filename = self.chunk_to_filename[chunk_id]
         file_info = self.filename_to_chunks[filename]
@@ -280,14 +245,9 @@ class Master():
                 break
         return cur_version, chunk_idx
 
-    '''
-    report_invalid_checksum:
-    Called by a chunkserver to report a chunk that it discovers has an invalid checksum.
-    The master then rereplicates that chunk to a different chunkserver.
-
-    @param chunk_id(int): chunk id of chunk with invalid checksum
-    @param bad_url(string): url of chunkserver with bad chunk
-    '''
+    # report_invalid_checksum:
+    # Called by a chunkserver to report a chunk that it discovers has an invalid checksum.
+    # The master then rereplicates that chunk to a different chunkserver.
     def report_invalid_checksum(self, chunk_id, bad_url):
         print(bad_url, 'has invalid checksum for', chunk_id, 'so rereplicating')
         all_urls = self.chunkserver_url_to_proxy.keys()
@@ -297,14 +257,8 @@ class Master():
         self.chunk_to_urls[chunk_id] = valid_replicas
         self.replicate_single_chunk(chunk_id, valid_replicas, urls_without_replicas)
 
-    '''
-    replicate_single_chunk:
-    Replicates a single chunk from an existing replica to a replica without that chunk.
-
-    @param chunk_id(int): chunk id to replicate
-    @param replica_list(list[string]): list of urls that have a valid replica of this chunk
-    @param urls_without_replicas(list[string]): list of urls without a replica of this chunk
-    '''
+    # replicate_single_chunk:
+    # Replicates a single chunk from an existing replica to a replica without that chunk.
     def replicate_single_chunk(self, chunk_id, replica_list, urls_without_replicas):
         while len(urls_without_replicas) > 0:
             url = urls_without_replicas.pop()
@@ -323,11 +277,9 @@ class Master():
             else:
                 print('chunk replication failed:', res, 'trying on different replica')
 
-    '''
-    rereplicate_chunks:
-    Periodically called to rereplicate all chunks with # replicas fewer
-    than self.num_replicas.
-    '''
+    # rereplicate_chunks:
+    # Periodically called to rereplicate all chunks with # replicas fewer
+    # than self.num_replicas.
     def rereplicate_chunks(self):
         # loop through self.chunk_to_urls
         # for every chunk id with < self.num_replicas replicas
@@ -342,14 +294,9 @@ class Master():
             for i in range(len(replica_list), self.num_replicas):
                 self.replicate_single_chunk(chunk_id, replica_list, urls_without_replicas)
 
-    '''
-    create:
-    Called by the client to create a file with the desired filename.
-    Sets up metadata for the file and creates it on a replicated number of chunkservers.
-
-    @param filename(string): desired filename of file to create
-    @return string: result message
-    '''
+    # create:
+    # Called by the client to create a file with the desired filename.
+    # Sets up metadata for the file and creates it on a replicated number of chunkservers.
     def create(self, filename):
         #randomly sample self.num_replicas servers to host replicas on
         all_urls = self.chunkserver_url_to_proxy.keys()
@@ -380,15 +327,10 @@ class Master():
         return 'successfully created ' + filename
 
 
-    '''
-    delete:
-    Called by the client to delete the specified filename. All the master does is
-    rename the filename to DELETED_original_filename. The background process will
-    delete the metadata for the file after the specified deletion time expires.
-
-    @param filename(string): desired filename to delete
-    @return string: result message
-    '''
+    # delete:
+    # Called by the client to delete the specified filename. All the master does is
+    # rename the filename to DELETED_original_filename. The background process will
+    # delete the metadata for the file after the specified deletion time expires.
     def delete(self, filename):
         if filename not in self.filename_to_chunks:
             return 'file not found'
@@ -401,15 +343,8 @@ class Master():
         self.flush_to_log()
         return 'successfully deleted ' + filename
 
-    '''
-    read:
-    Called by the client to get metadata for a chunkserver read.
-
-    @param filename(string): filename of desired file to read
-    @param chunk_idx(int): desired chunk index to read within file
-    @return (int, list[string]): the chunk id of the (filename, chunk_idx) pair
-    and the list of all replicas that this chunk id is located on.
-    '''
+    # read:
+    # Called by the client to get metadata for a chunkserver read.
     def read(self, filename, chunk_idx):
         if filename not in self.filename_to_chunks:
             return 'file not found'

@@ -23,24 +23,14 @@ class Client():
         # used for caching the primary of a given file and chunk index when writing
         self.replicas_cache = {}
 
-    '''
-    create:
-    Tell the master to create a file in GFS with the given filename.
-
-    @param filename(string): desired filename to create
-    @return string: result message
-    '''
+    # create:
+    # Tell the master to create a file in GFS with the given filename.
     def create(self, filename):
         return self.master_proxy.create(filename)
 
-    '''
-    delete:
-    Delete cached entries for filename, then tell the master to delete the file
-    with the given filename from GFS.
-
-    @param filename(string): desired filename to delete
-    @return string: result message
-    '''
+    # delete:
+    # Delete cached entries for filename, then tell the master to delete the file
+    # with the given filename from GFS.
     def delete(self, filename):
         to_delete = []
         for f, chunk_idx in self.replicas_cache:
@@ -50,16 +40,9 @@ class Client():
             del self.replicas_cache[tup]
         return self.master_proxy.delete(filename)
 
-    '''
-    read:
-    Read amount bytes from thespecified filename, starting at a given offset.
-    Splits the amount into different chunks if the read overlaps chunks.
-
-    @param filename(string): desired filename to read
-    @param byte_offset(int): offset within file to start reading from
-    @param amount(int): number of bytes to read starting from byte_offset
-    @return string: bytes read from filename, or 'file not found'
-    '''
+    # read:
+    # Read amount bytes from thespecified filename, starting at a given offset.
+    # Splits the amount into different chunks if the read overlaps chunks.
     def read(self, filename, byte_offset, amount):
         chunk_idx = byte_offset // self.chunk_size
         chunk_offset = byte_offset % self.chunk_size
@@ -114,19 +97,10 @@ class Client():
             chunk_offset = 0
         return s
 
-    '''
-    write:
-    Writes the given data to the desired file. The client specifies the byte_offset,
-    which must be the last byte written so far in the file.
-    Splits writes that overlap chunks into multiple writes.
-
-    @param filename(string): desired filename to write
-    @param data(string): data to write to file
-    @param byte_offset(int): offset within file that corresponds to the last byte written
-    @return int: offset within file that the data was actually written to.
-    This may differ from the provided byte_offset when there are multiple concurrent writers
-    to the same file.
-    '''
+    # write:
+    # Writes the given data to the desired file. The client specifies the byte_offset,
+    # which must be the last byte written so far in the file.
+    # Splits writes that overlap chunks into multiple writes.
     def write(self, filename, data, byte_offset):
         chunk_idx = byte_offset // self.chunk_size
         first_chunk_idx = chunk_idx
@@ -161,17 +135,9 @@ class Client():
                 amount_to_write_in_chunk = min(self.chunk_size, total_to_write)
         return offset_written_at
 
-    '''
-    write_helper:
-    Helper method to handle sending data to replicas as well as actually applying the
-    mutations to those replicas. Handles lease management and requesting new primaries
-    if the current primary is down or the lease has expired.
-
-    @param filename(string): desired filename to write
-    @param data(string): data to write to file
-    @param chunk_idx(int): chunk index of file to write to
-    @return int: offset within file that the data was actually written to.
-    '''
+    # write_helper:
+    # Helper method to handle sending data to replicas as well as actually applying the
+    # mutations to those replicas.
     def write_helper(self, filename, data, chunk_idx):
         if (filename, chunk_idx) in self.replicas_cache:
             res = self.replicas_cache[(filename,chunk_idx)]
