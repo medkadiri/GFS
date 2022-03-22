@@ -8,6 +8,8 @@ import threading
 import time
 import sys
 
+import py_eureka_client.eureka_client as eureka_client
+
 
 class FileInfo():
     def __init__(self, deleted=False, time=None, chunk_list=[]):
@@ -37,7 +39,11 @@ class Master():
         background_thread.daemon = True
         background_thread.start()
         print('master initialized')
-
+        your_rest_server_port = 9000
+        eureka_client.init(eureka_server="http://localhost:8761",
+                                app_name="Master",
+                                instance_port=your_rest_server_port, instance_id="1")
+        print('master registered')
 
     '''
     init_from_log:

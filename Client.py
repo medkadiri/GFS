@@ -4,13 +4,17 @@ from xmlrpc.client import ServerProxy
 import random
 import time
 
+import py_eureka_client.eureka_client as eureka_client
+
 class Client():
-    def __init__(self, chunk_size=64000, master_url='http://localhost:9000', \
-            cache_timeout=60, debug=False):
+    def __init__(self, chunk_size=64000, cache_timeout=60, debug=False):
         random.seed(0)
         self.debug = debug
         self.chunk_size = chunk_size
-        self.master_proxy = ServerProxy(master_url)
+        eureka_client.init(eureka_server="localhost:8761", app_name="client", instance_port= 9999)
+        res = eureka_client.get_application(eureka_server="http://localhost:8761/eureka/", app_name="MASTER")
+        print("result: " + str(res.get_instance("1").ipAddr))
+        self.master_proxy = ServerProxy('http://' + str(res.get_instance("1").ipAddr) + ':9000')
         # read_cache: (filename,chunk_idx) -> [chunk_id,[replica urls],time]
         # used for caching the replica urls of a given file and chunk index when reading
         self.read_cache = {}

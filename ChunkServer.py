@@ -8,9 +8,14 @@ import sys
 import threading
 import time
 
+import py_eureka_client.eureka_client as eureka_client
+
 class ChunkServer():
     def __init__(self, host, port):
-        self.master_proxy = ServerProxy('http://localhost:9000') # Replace with Service Registry Lookup
+        eureka_client.init(eureka_server="localhost:8761", app_name=("chunk_server_" + host), instance_port= port)
+        res = eureka_client.get_application(eureka_server="http://localhost:8761/eureka/", app_name="MASTER")
+        print("result: " + str(res.get_instance("1").ipAddr))
+        self.master_proxy = ServerProxy('http://' + str(res.get_instance("1").ipAddr) + ':9000') # Replaced with Service Registry Lookup
         self.root_dir = '/home/mohamed/temp/' + port + '/'
         self.url = 'http://' + host + ':' + port
         self.checksum_size_bytes = 64
