@@ -14,10 +14,10 @@ class ChunkServer():
     def __init__(self, host, port):
         eureka_client.init(eureka_server="localhost:8761", app_name=("chunk_server_" + host), instance_port= port)
         res = eureka_client.get_application(eureka_server="http://localhost:8761/eureka/", app_name="MASTER")
-        print("result: " + str(res.get_instance("1").ipAddr))
-        self.master_proxy = ServerProxy('http://' + str(res.get_instance("1").ipAddr) + ':9000') # Replaced with Service Registry Lookup
-        self.root_dir = '/home/mohamed/temp/' + port + '/'
-        self.url = 'http://' + host + ':' + port
+        print("result: " + str(res.get_instance("1").ipAddr) + " port: " + str(res.get_instance("1").port.port))
+        self.master_proxy = ServerProxy('http://' + "localhost" + ":" + str(res.get_instance("1").port.port))
+        self.root_dir = '/home/mohamed/temp/' + str(port) + '/'
+        self.url = 'http://' + host + ':' + str(port)
         self.checksum_size_bytes = 64
         self.chunk_id_to_filename = {} # int chunk_id -> str filename
         self.chunk_id_to_version = {} # int chunk_id -> int version
@@ -288,7 +288,7 @@ def main():
     port = sys.argv[2]
     server = SimpleXMLRPCServer((host, int(port)), allow_none=True)
     server.register_introspection_functions()
-    server.register_instance(ChunkServer(host,port))
+    server.register_instance(ChunkServer(host,int(port)))
     server.serve_forever()
 
 if __name__ == '__main__':
