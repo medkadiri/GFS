@@ -12,10 +12,11 @@ import py_eureka_client.eureka_client as eureka_client
 
 class ChunkServer():
     def __init__(self, host, port):
-        eureka_client.init(eureka_server="localhost:8761", app_name=("chunk_server_" + host), instance_port= port)
-        res = eureka_client.get_application(eureka_server="http://localhost:8761/eureka/", app_name="MASTER")
+        client = eureka_client.init(eureka_server="http://localhost:8761", app_name=("chunk_server_" + host), instance_port= port)
+        #print(client.applications.get_application)
+        res = client.applications.get_application(app_name="MASTER")
         print("result: " + str(res.get_instance("1").ipAddr) + " port: " + str(res.get_instance("1").port.port))
-        self.master_proxy = ServerProxy('http://' + "localhost" + ":" + str(res.get_instance("1").port.port))
+        self.master_proxy = ServerProxy("http://" + "localhost" + ":" + str(res.get_instance("1").port.port))
         self.root_dir = '/home/mohamed/temp/' + str(port) + '/'
         self.url = 'http://' + host + ':' + str(port)
         self.checksum_size_bytes = 64

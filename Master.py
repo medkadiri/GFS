@@ -33,16 +33,18 @@ class Master():
         self.init_from_log()
         self.thread_interval = 30
         self.url_to_heartbeat_time = {} # string url -> float time of last hearbeat
+
+        your_rest_server_port = 9000
+        self._eureka_client = eureka_client.init(eureka_server="http://localhost:8761",
+                                app_name="Master",
+                                instance_port=your_rest_server_port, instance_id="1")
+        print('master registered')
+
         background_thread = threading.Thread(target=self.background_thread, \
                 args=[self.thread_interval])
         background_thread.daemon = True
         background_thread.start()
         print('master initialized')
-        your_rest_server_port = 9000
-        eureka_client.init(eureka_server="http://localhost:8761",
-                                app_name="Master",
-                                instance_port=your_rest_server_port, instance_id="1")
-        print('master registered')
 
     # init_from_log:
     # Initializes the master from its log, if it exists. Used to recover in-memory metadata
@@ -90,6 +92,16 @@ class Master():
             pickle.dump(self.chunk_id_counter, f)
         print('flushed metadata to log')
     
+    def syncState(self):
+        res = self._eureka_client.applications.get_application(app_name="MasterState")
+        with open(self.root_dir + 'log.txt', 'rb') as f:
+            data = pickle.load(f)
+
+        for i in range(len(res.instances)):
+            proxy = ServerProxy('http://' + res.instances[i].ipAddr + ':' + res.instances[i].port.port)
+            proxy.flush_to_state_log(data)
+
+
     # background_thread:
     # Thread that continuously runs to handle various background tasks.
     def background_thread(self, interval):
@@ -97,6 +109,7 @@ class Master():
             self.garbage_collect()
             self.check_heartbeats()
             self.rereplicate_chunks()
+            self.syncState()
             time.sleep(interval)
 
     # check_heartbeats:
@@ -355,33 +368,30 @@ class Master():
         print('READ returning:', chunk_id, replica_urls)
         return (chunk_id, replica_urls)
 
-    def get_replicas(self, filename, chunk_idx, force_update):
+    def get_replicas(self, filename, chunk_idx):
         if filename not in self.filename_to_chunks:
             return 'file not found'
         chunk_id, version = self.filename_to_chunks[filename].chunk_list[chunk_idx]
         replica_urls = self.chunk_to_urls[chunk_id]
 
-        if force_update :
-            # update version number of chunk and notify replicas
-            chunk_id, version = self.filename_to_chunks[filename].chunk_list[chunk_idx]
-            self.filename_to_chunks[filename].chunk_list[chunk_idx] = (chunk_id, version+1)
-            urls_to_remove = []
-            for url in replica_urls:
-                try:
-                    replica_proxy = self.chunkserver_url_to_proxy[url]
-                    replica_proxy.update_version(chunk_id, version+1)
-                except:
-                    urls_to_remove.append(url)
-                    self.remove_chunkserver(url)
-                    continue
-            for url in urls_to_remove:
-                replica_urls.remove(url)
+        # update version number of chunk and notify replicas
+        chunk_id, version = self.filename_to_chunks[filename].chunk_list[chunk_idx]
+        self.filename_to_chunks[filename].chunk_list[chunk_idx] = (chunk_id, version+1)
+        urls_to_remove = []
+        for url in replica_urls:
+            try:
+                replica_proxy = self.chunkserver_url_to_proxy[url]
+                replica_proxy.update_version(chunk_id, version+1)
+            except:
+                urls_to_remove.append(url)
+                self.remove_chunkserver(url)
+                continue
+        for url in urls_to_remove:
+            replica_urls.remove(url)
 
-            if len(replica_urls) == 0:
-                return 'no replicas remaining for chunk id ' + str(chunk_id)
-            self.flush_to_log()
-        else:
-            print('no update needed for chunk id', chunk_id)
+        if len(replica_urls) == 0:
+            return 'no replicas remaining for chunk id ' + str(chunk_id)
+        self.flush_to_log()
 
         return (chunk_id, replica_urls)
 

@@ -1,4 +1,3 @@
-from asyncore import write
 from xmlrpc.client import ServerProxy
 
 import random
@@ -19,7 +18,7 @@ class Client():
         # used for caching the replica urls of a given file and chunk index when reading
         self.read_cache = {}
         self.read_cache_timeout_secs = cache_timeout
-        # primary_cache: (filename,chunk_idx) -> [chunk_id,primary,[replica urls]]
+        # replicas_cache: (filename,chunk_idx) -> [chunk_id,primary,[replica urls]]
         # used for caching the primary of a given file and chunk index when writing
         self.replicas_cache = {}
 
@@ -144,7 +143,7 @@ class Client():
             if self.debug:
                 print('using from replicas cache:', res)
         else:
-            res = self.master_proxy.get_replicas(filename, chunk_idx, False)
+            res = self.master_proxy.get_replicas(filename, chunk_idx)
             if res == 'file not found':
                 return res
             self.replicas_cache[(filename,chunk_idx)] = res
@@ -153,7 +152,7 @@ class Client():
         chunk_id = res[0]
         replica_urls = res[1]
 
-        # send data to all other replicas
+        # send data to all replicas
         i = 0
         while i < len(replica_urls):
             replica_url = replica_urls[i]
@@ -164,7 +163,7 @@ class Client():
                 if self.debug:
                     print('exception when sending data to', replica_url)
                 send_res = 'chunkserver failure_' + replica_url
-        # if any replica failed, reselect primary and replicas
+        # if any replica failed, reselect replicas
             if send_res != 'success':
                 if self.debug:
                     print('replica failed when sending data, asking for replicas again')
@@ -174,7 +173,7 @@ class Client():
                     continue
                 failed_url = send_res[send_res.rfind('_')+1:]
                 self.master_proxy.remove_chunkserver(failed_url)
-                new_replicas_res = self.master_proxy.get_replicas(filename, chunk_idx, True)
+                new_replicas_res = self.master_proxy.get_replicas(filename, chunk_idx)
                 self.replicas_cache[(filename, chunk_idx)] = new_replicas_res
                 chunk_id = new_replicas_res[0]
                 replica_urls = new_replicas_res[1]
